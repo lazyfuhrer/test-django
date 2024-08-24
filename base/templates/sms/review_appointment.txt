@@ -1,0 +1,2 @@
+Hi {{ first_name}}, Thanks for Visiting Atlas Chiropractic -
+{{clinic_location}} Please share your review: review link

@@ -109,8 +109,9 @@
 <h2>Details</h2>
 <table border="1" style="width: 100%" cellpadding="0" cellspacing="0">
     <tr>
-        <th class="headbg">Invoice<br/>Number</th>
+        <th class="headbg">Sl No.</th>
         <th class="headbg">Date</th>
+        <th class="headbg">Invoice<br/>Number</th>
         <th class="headbg">Patient</th>
         <th class="headbg">Procedures</th>
         <th class="headbg">Cost (INR)</th>
@@ -121,8 +122,9 @@
     </tr>
     {% for invoice in details %}
         <tr style="border-bottom: 1px solid #ccc; margin-top: 5px;">
-            <td class="tablecontent">INV{{ invoice.invoice_number }}</td>
+            <td class="tablecontent">{{ invoice.sl_no }}</td>
             <td class="tablecontent">{{ invoice.date }}</td>
+            <td class="tablecontent">INV{{ invoice.invoice_number }}</td>
             <td class="tablecontent">{{ invoice.patient_name }}</td>
             <td class="tablecontent">{{ invoice.procedure_names }}</td>
             <td class="tablecontent">{{ invoice.cost }}</td>

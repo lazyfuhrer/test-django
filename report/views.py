@@ -1,5 +1,6 @@
 import csv
 
+from datetime import datetime
 from django.db.models import Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
@@ -166,12 +167,17 @@ class ReportBaseView(APIView):
 
 class IncomeReportExport(ReportBaseView):
     csv_column_names = {
-        "invoice_number": "Invoice", "date": "Date", "clinic_name": "Clinic", "patient_name": "Patient",
+        "sl_no": "Sl No.", "date": "Date", "invoice_number": "Invoice", "clinic_name": "Clinic", "patient_name": "Patient",
         "patient_atlas_id": "Patient ID", "procedure_names": "Procedures", "cost": "Cost", "discount": "Discount",
         "tax": "Tax", "grand_total": "Invoice Amount", "paid_amount": "Paid Amount"
     }
     type_name = "income_report"
     template = "income.html"
+
+    def format_date(self, date_string):
+        if date_string:
+            return datetime.strptime(date_string, '%Y-%m-%d').strftime('%d-%m-%Y')
+        return ''
 
     def get(self, request):
         query = request.query_params
@@ -188,13 +194,22 @@ class IncomeReportExport(ReportBaseView):
             return Response({'error': 'Invalid clinic ID'}, status=status.HTTP_400_BAD_REQUEST)
         clinic = get_object_or_404(Clinic, id=clinic_id)
         clinic_location = clinic.name
-        today = custom_strftime('%Y-%m-%d')
+        today = custom_strftime('%d-%m-%Y')
         app = AppointmentReport(from_date=from_date, to_date=to_date,
                                 clinic_id=clinic_id)
         summery = app.income_summary()
         income = Invoice.objects.filter(clinic=clinic_id, date__range=(app.fdate, app.tdate))
 
         details = InvoiceSerializer(income, many=True).data
+
+        details = sorted(details, key=lambda x: (x['date'], x['invoice_number']))
+
+        for index, detail in enumerate(details, start=1):
+            detail['sl_no'] = index
+
+        for detail in details:
+            detail['date'] = self.format_date(detail['date'])
+
         data = {"user": user, "summery": summery, "details": details, "clinic_location": clinic_location,
                 "from_date": app.fdate, "to_date": app.tdate, "today": today}
 
@@ -205,7 +220,7 @@ class IncomeReportExport(ReportBaseView):
 
 class PaymentReportExport(ReportBaseView):
     csv_column_names = {
-        "receipt_id": "Receipt ID", "collected_on": "Date", "clinic_name": "Clinic", "patient_name": "Patient",
+        "sl_no": "Sl No.", "collected_on": "Date", "receipt_id": "Receipt ID", "clinic_name": "Clinic", "patient_name": "Patient",
         "patient_atlas_id": "Patient ID", "invoice_number": "Invoice", 'invoice_date': "Invoice Date",
         "procedure_names": "Procedures", "price": "Amount Paid (INR)", "type": "Payment Type", "mode": "Payment Mode",
         "transaction_id": "Transaction ID", "payment_status": "Status", "advance": "Advance"
@@ -214,6 +229,11 @@ class PaymentReportExport(ReportBaseView):
                     "procedure_names", "price", "balance", "type", "mode", "transaction_id", "payment_status"]
     type_name = "payment_report"
     template = "payment.html"
+
+    def format_date(self, date_string):
+        if date_string:
+            return datetime.strptime(date_string, '%Y-%m-%d').strftime('%d-%m-%Y')
+        return ''
 
     def balance_fix(self, row, total_balance):
         row['advance'] = "Yes"
@@ -265,7 +285,7 @@ class PaymentReportExport(ReportBaseView):
 
         clinic = get_object_or_404(Clinic, id=clinic_id)
         clinic_location = clinic.name
-        today = custom_strftime('%Y-%m-%d')
+        today = custom_strftime('%d-%m-%Y')
 
         app = AppointmentReport(from_date=from_date, to_date=to_date, clinic_id=clinic_id)
         summery = app.payment_summary()
@@ -274,21 +294,30 @@ class PaymentReportExport(ReportBaseView):
             clinic=clinic_id,
             collected_on__range=(app.fdate, app.tdate),
             transaction_type__in=['collected', 'wallet_payment']
-        )
+        ).order_by('collected_on', 'receipt_id', 'invoice__invoice_number')
 
         receipt_records = payments.distinct()
         details = PaymentSerializer(receipt_records, many=True).data
 
         unique_patient_ids = set(record['patient'] for record in details)
 
-        additional_rows = []
+        aggregated_rows = {}
         for patient_id in unique_patient_ids:
             aggregated_row = self.aggregate_positive_balances(patient_id, app.fdate, app.tdate)
             if aggregated_row:
-                additional_rows.append(aggregated_row)
+                aggregated_rows[patient_id] = aggregated_row
 
-        details.extend(additional_rows)
-        details.sort(key=lambda x: x['patient'])
+        for patient_id in unique_patient_ids:
+            if patient_id in aggregated_rows:
+                last_payment_index = max(index for index, detail in enumerate(details) if detail['patient'] == patient_id)
+                details.insert(last_payment_index + 1, aggregated_rows[patient_id])
+
+        for index, detail in enumerate(details, start=1):
+            detail['sl_no'] = index
+
+        for detail in details:
+            detail['collected_on'] = self.format_date(detail['collected_on'])
+            detail['invoice_date'] = self.format_date(detail['invoice_date'])
 
         data = {
             "user": user,
@@ -325,7 +354,7 @@ class IncomePerProcedureReportView(APIView):
         app = AppointmentReport(from_date=from_date, to_date=to_date,
                                 clinic_id=clinic_id)
         summery = app.get_income_per_procedure()
-        return Response({"results": summery}, status=status.HTTP_200_OK)
+        return Response(summery, status=status.HTTP_200_OK)
 
 class AppointmentPerProcedureReportView(APIView):
     def get(self, request):

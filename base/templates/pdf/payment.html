@@ -110,8 +110,9 @@
 <h2>Details</h2>
 <table border="1" style="width: 100%" cellpadding="0" cellspacing="0">
     <tr>
-        <th class="headbg">ID</th>
+        <th class="headbg">Sl No.</th>
         <th class="headbg">Date</th>
+        <th class="headbg">ID</th>
         {#        <th>Inovice Date</th>#}
         {#        <th>Appoitment Date</th>#}
         <th class="headbg">Patient</th>
@@ -128,8 +129,9 @@
 
     {% for payment in details %}
         <tr style="border-bottom: 1px solid #ccc; margin-top: 5px;">
-            <td class="tablecontent">RCPT{{ payment.id }}</td>
+            <td class="tablecontent">{{ payment.sl_no }}</td>
             <td class="tablecontent">{{ payment.collected_on }}</td>
+            <td class="tablecontent">RCPT{{ payment.id }}</td>
             {#            <td>{{ invoice_date }}</td>#}
             {#            <td>{{ appointment_date }}</td>#}
             <td class="tablecontent">{{ payment.patient_name }}</td>
